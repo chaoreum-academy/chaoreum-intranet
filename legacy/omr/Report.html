@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --ink:#111; --line:#e3e3e3; --red:#d4302b; --green:#1e8e4e; --bar:#3a6ea5; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; }
+  .wrap { max-width:480px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h2 { font-size:16px; margin:26px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+  .who { color:#666; font-size:14px; }
+  select { width:100%; font-size:16px; padding:10px; margin-top:14px; border:1px solid #bbb; border-radius:8px; background:#fff; }
+  .score { font-size:44px; font-weight:bold; text-align:center; margin:16px 0 0; }
+  .score small { font-size:22px; color:#666; }
+  .area { margin:10px 0; }
+  .area .top { display:flex; justify-content:space-between; font-size:14px; margin-bottom:4px; }
+  .need { color:var(--red); font-weight:bold; font-size:12px; margin-left:6px; }
+  .track { height:12px; background:#f0f0f0; border-radius:6px; overflow:hidden; }
+  .fill { height:100%; background:var(--bar); }
+  .fill.low { background:var(--red); }
+  .dots { display:flex; flex-wrap:wrap; gap:8px; }
+  .dot { width:36px; height:36px; border-radius:18px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:bold; font-size:14px; }
+  .dot.o { background:var(--green); }
+  .dot.x { background:var(--red); }
+  .legend { font-size:12px; color:#777; margin-top:8px; }
+  .comment p { margin:0 0 8px; line-height:1.6; font-size:15px; }
+  .empty { color:#777; margin-top:30px; text-align:center; }
+  svg text { font-family:inherit; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><p class="empty">불러오는 중…</p></div>
+<script>
+  var data = null;
+  google.script.url.getLocation(function (loc) {
+    var key = (loc.parameter && loc.parameter.r) || '';
+    google.script.run.withSuccessHandler(render).withFailureHandler(function () { msg('리포트를 불러오지 못했어요.'); }).getReport(key);
+  });
+
+  function msg(t) { var a = document.getElementById('app'); a.innerHTML = ''; var p = el('p', 'empty', t); a.appendChild(p); }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+
+  function render(r) {
+    if (!r || !r.ok) { msg('리포트 주소가 맞지 않아요. 선생님께 문의해 주세요.'); return; }
+    data = r;
+    if (!r.exams.length) { msg(r.name + ' 학생은 아직 제출한 시험이 없어요.'); return; }
+    var a = document.getElementById('app'); a.innerHTML = '';
+    a.appendChild(el('h1', '', r.name + ' 학생 리포트'));
+    a.appendChild(el('div', 'who', r.cls));
+    var sel = el('select');
+    r.exams.forEach(function (x, i) { var o = el('option', '', x.date + ' · ' + x.name); o.value = i; sel.appendChild(o); });
+    sel.value = r.exams.length - 1;
+    sel.onchange = function () { detail(+sel.value); };
+    a.appendChild(sel);
+    a.appendChild(el('div', '', '')).id = 'detail';
+    a.appendChild(el('h2', '', '누적 점수 추이'));
+    a.appendChild(trend(r.exams));
+    detail(r.exams.length - 1);
+  }
+
+  function detail(i) {
+    var x = data.exams[i], d = document.getElementById('detail'); d.innerHTML = '';
+    var s = el('div', 'score', String(x.score)); s.appendChild(el('small', '', ' / ' + x.n)); d.appendChild(s);
+
+    d.appendChild(el('h2', '', '영역별 정답률'));
+    x.areas.forEach(function (ar) {
+      var box = el('div', 'area'), top = el('div', 'top');
+      var name = el('span', '', ar.area); if (ar.need) name.appendChild(el('span', 'need', '보완 필요'));
+      top.appendChild(name); top.appendChild(el('span', '', ar.rate + '%'));
+      var tr = el('div', 'track'), f = el('div', 'fill' + (ar.need ? ' low' : '')); f.style.width = ar.rate + '%';
+      tr.appendChild(f); box.appendChild(top); box.appendChild(tr); d.appendChild(box);
+    });
+
+    d.appendChild(el('h2', '', '문항별 결과'));
+    var dots = el('div', 'dots');
+    x.ox.forEach(function (o, k) { dots.appendChild(el('div', 'dot ' + (o ? 'o' : 'x'), String(k + 1))); });
+    d.appendChild(dots);
+    d.appendChild(el('div', 'legend', '초록 = 맞음, 빨강 = 틀림'));
+
+    d.appendChild(el('h2', '', '선생님 코멘트'));
+    var c = el('div', 'comment');
+    x.comment.split('\n').forEach(function (line) { c.appendChild(el('p', '', line)); });
+    d.appendChild(c);
+  }
+
+  function trend(exams) {   // 점수(백분율) 꺾은선 그래프
+    var W = 448, H = 200, L = 34, R = 10, T = 14, B = 34;
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('width', '100%');
+    function add(tag, at, text) { var e = document.createElementNS(NS, tag); for (var k in at) e.setAttribute(k, at[k]); if (text != null) e.textContent = text; svg.appendChild(e); return e; }
+    [0, 50, 100].forEach(function (v) {
+      var y = T + (H - T - B) * (1 - v / 100);
+      add('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: '#eee' });
+      add('text', { x: L - 6, y: y + 4, 'text-anchor': 'end', 'font-size': 11, fill: '#888' }, v);
+    });
+    var n = exams.length, pts = exams.map(function (x, i) {
+      return [n === 1 ? (L + W - R) / 2 : L + (W - L - R) * i / (n - 1), T + (H - T - B) * (1 - x.score / x.n)];
+    });
+    if (n > 1) add('polyline', { points: pts.map(function (p) { return p.join(','); }).join(' '), fill: 'none', stroke: '#3a6ea5', 'stroke-width': 2.5 });
+    pts.forEach(function (p, i) {
+      add('circle', { cx: p[0], cy: p[1], r: 4.5, fill: '#3a6ea5' });
+      if (n <= 8 || i % Math.ceil(n / 8) === 0 || i === n - 1) add('text', { x: p[0], y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: '#666' }, exams[i].date);
+    });
+    return svg;
+  }
+</script>
+</body>
+</html>

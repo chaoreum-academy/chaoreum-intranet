@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root { --ink:#111; --line:#d9d9d9; --red:#d4302b; --green:#1e8e4e; --pink:#f7e3e3; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; }
+  .wrap { max-width:480px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:20px; margin:4px 0 16px; }
+  label { display:block; font-size:14px; margin:12px 0 6px; color:#444; }
+  input { width:100%; font-size:17px; padding:12px; border:1px solid #bbb; border-radius:8px; }
+  button { font-family:inherit; }
+  .btn { width:100%; margin-top:18px; padding:14px; font-size:17px; border:0; border-radius:8px; background:#111; color:#fff; }
+  .btn.sub { background:#fff; color:#111; border:1px solid #111; }
+  .btn:disabled { background:#999; }
+  .msg { color:var(--red); font-size:14px; margin-top:12px; min-height:18px; }
+  .who { font-size:14px; color:#555; margin-bottom:12px; }
+  .exam { display:flex; justify-content:space-between; align-items:center; width:100%; text-align:left; padding:14px; margin:8px 0; border:1px solid var(--line); border-radius:8px; background:#fff; font-size:16px; }
+  .exam small { color:#888; }
+  .exam.done { color:#999; background:#f6f6f6; }
+  /* 수능 OMR 카드 */
+  .omr { border:2px solid var(--red); border-radius:6px; overflow:hidden; }
+  .omr-head { background:var(--pink); color:var(--red); font-weight:bold; text-align:center; padding:8px; font-size:15px; border-bottom:2px solid var(--red); }
+  .row { display:flex; align-items:center; border-bottom:1px solid #f0c9c9; padding:6px 8px; }
+  .row:nth-child(5n) { border-bottom:2px solid var(--red); }
+  .row:last-child { border-bottom:0; }
+  .no { width:36px; text-align:center; color:var(--red); font-weight:bold; font-size:15px; }
+  .bubbles { display:flex; gap:10px; flex:1; justify-content:space-around; }
+  .bub { width:34px; height:44px; border:1.5px solid var(--red); border-radius:17px; background:#fff; color:var(--red); font-size:14px; display:flex; align-items:center; justify-content:center; }
+  .bub.on { background:#111; border-color:#111; color:#111; }
+  .score { font-size:44px; font-weight:bold; text-align:center; margin:18px 0 6px; }
+  .score small { font-size:22px; color:#666; }
+  .wrong { text-align:center; font-size:16px; margin-bottom:8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:10px 0; }
+  .chip { width:38px; height:38px; border-radius:19px; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; background:var(--red); }
+  .ok { color:var(--green); text-align:center; font-size:17px; }
+  .hide { display:none; }
+  /* 클리닉 신청 */
+  .btn.clinic { background:#C8102E; margin-top:4px; margin-bottom:10px; }
+  .sel { display:flex; gap:8px; }
+  select { flex:1; font-size:16px; padding:10px; border:1px solid #bbb; border-radius:8px; background:#fff; }
+  .teach { font-size:14px; color:#555; margin:6px 0 12px; }
+  .wk { font-size:14px; background:#f6f6f6; border-radius:8px; padding:8px 10px; margin:10px 0; }
+  .day { font-weight:bold; font-size:16px; margin:16px 0 6px; border-bottom:2px solid #C8102E; padding-bottom:4px; }
+  .slots { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .slot { padding:8px 4px; border:1px solid #bbb; border-radius:8px; background:#fff; font-size:15px; text-align:center; }
+  .slot small { display:block; font-size:11px; color:#888; }
+  .slot.mine { background:#1e8e4e; border-color:#1e8e4e; color:#fff; }
+  .slot.mine small { color:#e6ffe9; }
+  .slot.armed { background:#d4302b; border-color:#d4302b; color:#fff; }
+  .slot.armed small { color:#ffe; }
+  .slot.full, .slot.past { background:#eee; color:#aaa; }
+  .mylist { font-size:14px; margin:8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="v-login">
+    <h1>복습테스트 OMR</h1>
+    <label>학번</label><input id="id" inputmode="numeric" autocomplete="off">
+    <label>이름</label><input id="name" autocomplete="off">
+    <button class="btn" id="b-login" onclick="doLogin()">들어가기</button>
+    <div class="msg" id="m-login"></div>
+  </div>
+
+  <div id="v-list" class="hide">
+    <h1>시험 고르기</h1>
+    <div class="who" id="who"></div>
+    <button class="btn clinic" onclick="openClinic()">🗓 클리닉 신청 · 변경</button>
+    <div id="list"></div>
+    <div class="msg" id="m-list"></div>
+  </div>
+
+  <div id="v-omr" class="hide">
+    <h1 id="t-exam"></h1>
+    <div class="omr"><div class="omr-head">답 안 지</div><div id="rows"></div></div>
+    <button class="btn" id="b-submit" onclick="doSubmit()">제출하기</button>
+    <button class="btn sub" onclick="show('v-list')">시험 목록으로</button>
+    <div class="msg" id="m-omr"></div>
+  </div>
+
+  <div id="v-result" class="hide">
+    <h1 id="t-result"></h1>
+    <div class="score" id="score"></div>
+    <div id="wrongbox"></div>
+    <button class="btn" id="b-report" onclick="openReport()">내 리포트 보기</button>
+    <button class="btn sub" onclick="backToList()">시험 목록으로</button>
+  </div>
+
+  <div id="v-clinic" class="hide">
+    <h1>클리닉 신청</h1>
+    <div class="who" id="c-who"></div>
+    <div class="teach" id="c-teach"></div>
+    <div class="sel">
+      <select id="c-school"></select>
+      <select id="c-grade"><option value="">학년</option><option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option></select>
+    </div>
+    <div class="wk" id="c-wk"></div>
+    <div class="mylist" id="c-mine"></div>
+    <div class="msg" id="m-clinic"></div>
+    <div id="c-days"></div>
+    <button class="btn sub" onclick="backToList()">시험 목록으로</button>
+  </div>
+
+</div>
+<script>
+  var me = null, exam = null, picks = [], reportUrl = '';
+
+  function show(id) {
+    ['v-login', 'v-list', 'v-omr', 'v-result', 'v-clinic'].forEach(function (v) { document.getElementById(v).classList.toggle('hide', v !== id); });
+    window.scrollTo(0, 0);
+  }
+
+  function doLogin() {
+    var id = document.getElementById('id').value, name = document.getElementById('name').value;
+    var b = document.getElementById('b-login');
+    b.disabled = true; document.getElementById('m-login').textContent = '';
+    google.script.run.withSuccessHandler(function (r) {
+      b.disabled = false;
+      if (!r.ok) { document.getElementById('m-login').textContent = r.msg; return; }
+      me = r; renderList(r.exams); show('v-list');
+    }).withFailureHandler(fail('m-login', b)).login(id, name);
+  }
+
+  function fail(msgId, btn) {
+    return function (e) { if (btn) btn.disabled = false; document.getElementById(msgId).textContent = '잠시 후 다시 해 주세요. (' + e.message + ')'; };
+  }
+
+  function renderList(exams) {
+    document.getElementById('who').textContent = me.name + ' · ' + me.cls;
+    var box = document.getElementById('list'); box.innerHTML = '';
+    if (!exams.length) { box.textContent = '지금 열린 시험이 없어요.'; return; }
+    exams.forEach(function (x) {
+      var b = document.createElement('button');
+      b.className = 'exam' + (x.done ? ' done' : '');
+      var t = document.createElement('span'); t.textContent = x.name + (me.admin ? ' (' + x.cls + ')' : '');
+      var s = document.createElement('small'); s.textContent = x.done ? '제출함' : x.n + '문항';
+      b.appendChild(t); b.appendChild(s);
+      b.onclick = function () {
+        if (x.done) { document.getElementById('m-list').textContent = '이미 제출했어요.'; return; }
+        openExam(x);
+      };
+      box.appendChild(b);
+    });
+  }
+
+  function openExam(x) {
+    exam = x; picks = new Array(x.n).fill(0); armed = false;
+    document.getElementById('b-submit').textContent = '제출하기';
+    document.getElementById('t-exam').textContent = x.name;
+    document.getElementById('m-omr').textContent = '';
+    var rows = document.getElementById('rows'); rows.innerHTML = '';
+    for (var i = 0; i < x.n; i++) {
+      var row = document.createElement('div'); row.className = 'row';
+      var no = document.createElement('div'); no.className = 'no'; no.textContent = i + 1;
+      var bs = document.createElement('div'); bs.className = 'bubbles';
+      for (var c = 1; c <= x.choices; c++) {
+        var b = document.createElement('button'); b.className = 'bub'; b.textContent = c;
+        b.onclick = (function (q, v, el) { return function () { choose(q, v, el); }; })(i, c, b);
+        bs.appendChild(b);
+      }
+      row.appendChild(no); row.appendChild(bs); rows.appendChild(row);
+    }
+    document.getElementById('b-submit').disabled = false;
+    show('v-omr');
+  }
+
+  function choose(q, v, el) {   // 고르면 칸이 검게 칠해짐(한 문항에 하나)
+    if (armed) { armed = false; document.getElementById('b-submit').textContent = '제출하기'; document.getElementById('m-omr').textContent = ''; }
+    var sibs = el.parentNode.children;
+    for (var i = 0; i < sibs.length; i++) sibs[i].classList.remove('on');
+    if (picks[q] === v) { picks[q] = 0; return; }
+    picks[q] = v; el.classList.add('on');
+  }
+
+  var armed = false;   // 확인 창(confirm)을 막는 앱 안 브라우저가 있어, 한 번 더 누르면 제출되게 한다
+  function doSubmit() {
+    var b = document.getElementById('b-submit'), m = document.getElementById('m-omr');
+    if (!armed) {
+      var blank = picks.filter(function (p) { return !p; }).length;
+      m.textContent = (blank ? '표시하지 않은 문항이 ' + blank + '개 있어요. ' : '') + '제출하면 다시 고칠 수 없어요. 맞으면 [정말 제출] 을 눌러 주세요.';
+      b.textContent = '정말 제출'; armed = true;
+      return;
+    }
+    armed = false; b.textContent = '제출하기'; m.textContent = '채점 중…';
+    b.disabled = true;
+    google.script.run.withSuccessHandler(function (r) {
+      if (!r.ok) { b.disabled = false; document.getElementById('m-omr').textContent = r.msg; return; }
+      exam.done = true;
+      document.getElementById('t-result').textContent = exam.name;
+      document.getElementById('score').innerHTML = '';
+      document.getElementById('score').appendChild(document.createTextNode(r.score));
+      var sm = document.createElement('small'); sm.textContent = ' / ' + r.n; document.getElementById('score').appendChild(sm);
+      var wb = document.getElementById('wrongbox'); wb.innerHTML = '';
+      if (!r.wrong.length) { var ok = document.createElement('div'); ok.className = 'ok'; ok.textContent = '전 문항 정답이에요!'; wb.appendChild(ok); }
+      else {
+        var w = document.createElement('div'); w.className = 'wrong'; w.textContent = '틀린 문항'; wb.appendChild(w);
+        var ch = document.createElement('div'); ch.className = 'chips';
+        r.wrong.forEach(function (n) { var c = document.createElement('div'); c.className = 'chip'; c.textContent = n; ch.appendChild(c); });
+        wb.appendChild(ch);
+      }
+      reportUrl = r.report || '';
+      document.getElementById('b-report').classList.toggle('hide', !reportUrl);
+      show('v-result');
+    }).withFailureHandler(fail('m-omr', b)).submit(me.id, me.name, exam.cls, exam.name, picks);
+  }
+
+  function openReport() { if (reportUrl) window.open(reportUrl, '_top'); }
+
+  /* ── 클리닉 신청: 빈 칸을 누르면 신청, 내 칸(초록)을 두 번 누르면 취소 ── */
+  var cl = null, clArmed = '';
+  function openClinic() {
+    document.getElementById('m-list').textContent = '불러오는 중…';
+    google.script.run.withSuccessHandler(function (r) {
+      document.getElementById('m-list').textContent = '';
+      if (!r.ok) { document.getElementById('m-list').textContent = r.msg; return; }
+      cl = r; clArmed = ''; renderClinic(); show('v-clinic');
+    }).withFailureHandler(fail('m-list')).clinicInfo(me.id, me.name);
+  }
+  function reloadClinic(msg) {
+    google.script.run.withSuccessHandler(function (r) {
+      if (r.ok) { cl = r; clArmed = ''; renderClinic(); }
+      document.getElementById('m-clinic').textContent = msg || '';
+    }).withFailureHandler(fail('m-clinic')).clinicInfo(me.id, me.name);
+  }
+  function wkOf(d) { var x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x.getFullYear() + '-' + ('0' + (x.getMonth() + 1)).slice(-2) + '-' + ('0' + x.getDate()).slice(-2); }
+  function renderClinic() {
+    document.getElementById('c-who').textContent = me.name + ' · 학번 ' + me.id;
+    document.getElementById('c-teach').textContent = '담임: ' + cl.teacher + ' 선생님 · 수·목·금 오후 3시~10시 (30분 단위, 칸마다 ' + cl.cap + '명까지)';
+    var s = document.getElementById('c-school');
+    if (!s.options.length) {
+      s.innerHTML = '<option value="">학교</option>';
+      cl.schools.forEach(function (x) { var o = document.createElement('option'); o.value = x; o.textContent = x; s.appendChild(o); });
+      s.value = cl.school || ''; document.getElementById('c-grade').value = cl.grade || '';
+    }
+    var t0 = new Date(); var thisWk = wkOf(t0.getFullYear() + '-' + ('0' + (t0.getMonth() + 1)).slice(-2) + '-' + ('0' + t0.getDate()).slice(-2));
+    var w = Object.keys(cl.weeks).sort().map(function (k) { return (k === thisWk ? '이번 주' : '다음 주') + ' ' + cl.weeks[k] + '/' + cl.weekMax + '회'; });
+    document.getElementById('c-wk').textContent = '한 주에 ' + cl.weekMax + '번까지 신청할 수 있어요. ' + (w.length ? '지금 신청: ' + w.join(' · ') : '아직 신청한 시간이 없어요.');
+    document.getElementById('c-mine').textContent = cl.mine.length ? '✔ 내 신청: ' + cl.mine.map(function (m) { return m.date.slice(5).replace('-', '/') + ' ' + m.time; }).join(', ') + ' (초록 칸을 두 번 누르면 취소)' : '';
+    var box = document.getElementById('c-days'); box.innerHTML = '';
+    cl.days.forEach(function (d) {
+      var h = document.createElement('div'); h.className = 'day'; h.textContent = d.label; box.appendChild(h);
+      var g = document.createElement('div'); g.className = 'slots';
+      d.slots.forEach(function (x) {
+        var key = d.date + ' ' + x.t;
+        var b = document.createElement('button');
+        var full = x.n >= x.cap && !x.mine;
+        b.className = 'slot' + (x.mine ? ' mine' : '') + (full ? ' full' : '') + (x.past ? ' past' : '') + (clArmed === key ? ' armed' : '');
+        b.innerHTML = x.t + '<small>' + (x.past ? '지남' : x.mine ? (clArmed === key ? '한 번 더 누르면 취소' : '신청함 ✓') : full ? '마감' : x.n + '/' + x.cap + '명') + '</small>';
+        b.onclick = function () { clickSlot(d.date, x, key); };
+        g.appendChild(b);
+      });
+      box.appendChild(g);
+    });
+  }
+  function clickSlot(date, x, key) {
+    var m = document.getElementById('m-clinic');
+    if (cl.admin) { m.textContent = '선생님 계정은 보기만 할 수 있어요.'; return; }
+    if (x.past) { m.textContent = '이미 지난 시간이에요.'; return; }
+    if (x.mine) {
+      if (clArmed !== key) { clArmed = key; renderClinic(); m.textContent = date.slice(5).replace('-', '/') + ' ' + x.t + ' 신청을 취소하려면 한 번 더 눌러 주세요.'; return; }
+      m.textContent = '취소하는 중…';
+      google.script.run.withSuccessHandler(function (r) { reloadClinic(r.ok ? '취소했어요.' : r.msg); }).withFailureHandler(fail('m-clinic')).clinicCancel(me.id, me.name, date, x.t);
+      return;
+    }
+    if (x.n >= x.cap) { m.textContent = '이 시간은 정원이 다 찼어요.'; return; }
+    var school = document.getElementById('c-school').value, grade = document.getElementById('c-grade').value;
+    if (!school || !grade) { m.textContent = '먼저 학교와 학년을 골라 주세요.'; return; }
+    m.textContent = '신청하는 중…';
+    google.script.run.withSuccessHandler(function (r) { reloadClinic(r.ok ? date.slice(5).replace('-', '/') + ' ' + x.t + ' 신청했어요. 시간을 바꾸려면 초록 칸을 취소하고 새 칸을 누르면 돼요.' : r.msg); })
+      .withFailureHandler(fail('m-clinic')).clinicBook(me.id, me.name, school, grade, date, x.t);
+  }
+
+  function backToList() {
+    google.script.run.withSuccessHandler(function (r) { if (r.ok) { me = r; renderList(r.exams); } show('v-list'); }).login(me.id, me.name);
+  }
+</script>
+</body>
+</html>
